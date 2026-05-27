@@ -1,23 +1,31 @@
 
 <style>
-  #gc { display: block; border-radius: 8px; background: #1a1a2e; cursor: pointer; }
+  #wrap { position: relative; }
+  #gc { display: block; border-radius: 8px; background: #1a1a2e; cursor: pointer; width: 100%; height: auto; }
+  #fsBtn { position: absolute; top: 8px; right: 8px; padding: 6px 12px; border-radius: 6px; border: 0.5px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.5); color: #fff; cursor: pointer; font-size: 12px; font-family: monospace; z-index: 10; }
+  #fsBtn:hover { background: rgba(0,0,0,0.7); }
   #hud { font-family: monospace; text-align: center; padding: 8px 0; }
   #sc { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
   #cn { font-size: 14px; color: var(--color-text-secondary); }
   #mg { font-size: 14px; color: var(--color-text-secondary); margin-top: 4px; }
   #br { margin-top: 8px; display: flex; gap: 8px; justify-content: center; }
-  button { padding: 6px 18px; border-radius: 6px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer; font-size: 13px; }
+  button.btn { padding: 6px 18px; border-radius: 6px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); cursor: pointer; font-size: 13px; }
+  #wrap:fullscreen { background: #000; display: flex; align-items: center; justify-content: center; }
+  #wrap:fullscreen #gc { border-radius: 0; max-width: 100vw; max-height: 100vh; width: auto; height: auto; }
 </style>
 
 <div id="hud">
   <div id="sc">Distance: 0m</div>
   <div id="cn">Rubber duckies: 0</div>
-  <div id="mg">Hold Space / click & hold to fart-fly. Release to fall. Run on the ground!</div>
+  <div id="mg">Hold Space / click & hold to fart-fly. Release to fall.</div>
   <div id="br">
-    <button id="rb" style="display:none">Restart</button>
+    <button id="rb" class="btn" style="display:none">Restart</button>
   </div>
 </div>
-<canvas id="gc" width="680" height="400"></canvas>
+<div id="wrap">
+  <button id="fsBtn">⛶ Fullscreen</button>
+  <canvas id="gc" width="680" height="400"></canvas>
+</div>
 
 <script>
 const cv = document.getElementById('gc');
@@ -26,6 +34,8 @@ const scEl = document.getElementById('sc');
 const cnEl = document.getElementById('cn');
 const mgEl = document.getElementById('mg');
 const rb = document.getElementById('rb');
+const wrap = document.getElementById('wrap');
+const fsBtn = document.getElementById('fsBtn');
 
 const W = 680, H = 400;
 const CEIL = 20, FLOOR = H - 30;
@@ -39,18 +49,11 @@ let state, p, obs, particles, coins, score, ducks, speed, frame, spawnT, thrusti
 function init() {
   state = 'idle';
   p = { x: PX, y: FLOOR - 56, vy: 0, w: 30, h: 56, dead: false, grounded: true };
-  obs = [];
-  coins = [];
-  particles = [];
-  score = 0;
-  ducks = 0;
-  speed = 4;
-  frame = 0;
-  spawnT = 60;
-  thrusting = false;
+  obs = []; coins = []; particles = [];
+  score = 0; ducks = 0; speed = 4; frame = 0; spawnT = 60; thrusting = false;
   scEl.textContent = 'Distance: 0m';
   cnEl.textContent = 'Rubber duckies: 0';
-  mgEl.textContent = 'Hold Space / click & hold to fart-fly. Release to fall. Run on the ground!';
+  mgEl.textContent = 'Hold Space / click & hold to fart-fly. Release to fall.';
   rb.style.display = 'none';
 }
 
@@ -61,12 +64,8 @@ function spawn() {
     obs.push({ t: 'soap', x: W + 30, y, w: 44, h: 32 });
   } else if (r < 0.50) {
     const fromTop = Math.random() < 0.5;
-    if (fromTop) {
-      obs.push({ t: 'soap_col', x: W + 30, y: CEIL, w: 32, h: 80 + Math.random() * 100 });
-    } else {
-      const h = 80 + Math.random() * 100;
-      obs.push({ t: 'soap_col', x: W + 30, y: FLOOR - h, w: 32, h });
-    }
+    if (fromTop) obs.push({ t: 'soap_col', x: W + 30, y: CEIL, w: 32, h: 80 + Math.random() * 100 });
+    else { const h = 80 + Math.random() * 100; obs.push({ t: 'soap_col', x: W + 30, y: FLOOR - h, w: 32, h }); }
   } else if (r < 0.78) {
     const upper = Math.random() < 0.5;
     const showerY = upper ? CEIL : (CEIL + FLOOR) / 2;
@@ -82,29 +81,21 @@ function spawn() {
 
 function overlap(a, b) {
   const pad = 4;
-  return a.x + pad < b.x + b.w - pad &&
-         a.x + a.w - pad > b.x + pad &&
-         a.y + pad < b.y + b.h - pad &&
-         a.y + a.h - pad > b.y + pad;
+  return a.x + pad < b.x + b.w - pad && a.x + a.w - pad > b.x + pad &&
+         a.y + pad < b.y + b.h - pad && a.y + a.h - pad > b.y + pad;
 }
 
 function drawBg() {
-  cx.fillStyle = '#1a1a2e';
-  cx.fillRect(0, 0, W, H);
+  cx.fillStyle = '#1a1a2e'; cx.fillRect(0, 0, W, H);
   cx.fillStyle = '#2a2a4e';
   for (let i = 0; i < 8; i++) {
     const tx = ((frame * 0.5 + i * 95) % (W + 80)) - 40;
-    cx.fillRect(tx, CEIL, 60, 14);
-    cx.fillRect(tx, FLOOR - 14, 60, 14);
+    cx.fillRect(tx, CEIL, 60, 14); cx.fillRect(tx, FLOOR - 14, 60, 14);
   }
-  cx.fillStyle = '#444';
-  cx.fillRect(0, 0, W, CEIL);
-  cx.fillStyle = '#555';
-  cx.fillRect(0, FLOOR, W, H - FLOOR);
-  cx.fillStyle = '#666';
-  cx.fillRect(0, CEIL - 2, W, 2);
-  cx.fillStyle = '#777';
-  cx.fillRect(0, FLOOR, W, 2);
+  cx.fillStyle = '#444'; cx.fillRect(0, 0, W, CEIL);
+  cx.fillStyle = '#555'; cx.fillRect(0, FLOOR, W, H - FLOOR);
+  cx.fillStyle = '#666'; cx.fillRect(0, CEIL - 2, W, 2);
+  cx.fillStyle = '#777'; cx.fillRect(0, FLOOR, W, 2);
   cx.fillStyle = '#3a3a5e';
   for (let i = 0; i < 6; i++) {
     const tx = ((frame * 0.2 + i * 160) % (W + 100)) - 50;
@@ -120,71 +111,43 @@ function drawBg() {
 function drawOskar() {
   const x = p.x, y = p.y;
   if (p.dead) cx.globalAlpha = 0.6;
-
   const running = p.grounded && state === 'running';
   const legOff = running ? Math.sin(frame * 0.4) * 5 : 0;
   const armOff = running ? Math.cos(frame * 0.4) * 4 : 0;
-
   cx.fillStyle = '#3a6db5';
-  cx.fillRect(x + 4, y + 38, 9, 14);
-  cx.fillRect(x + 17, y + 38, 9, 14);
+  cx.fillRect(x + 4, y + 38, 9, 14); cx.fillRect(x + 17, y + 38, 9, 14);
   cx.fillStyle = '#c8a27a';
-  cx.fillRect(x + 3, y + 50 + legOff, 11, 6);
-  cx.fillRect(x + 16, y + 50 - legOff, 11, 6);
-
-  cx.fillStyle = '#e8e8e8';
-  cx.fillRect(x + 2, y + 20, 26, 22);
-  cx.fillStyle = '#ccc';
-  cx.fillRect(x + 2, y + 20, 26, 3);
-
+  cx.fillRect(x + 3, y + 50 + legOff, 11, 6); cx.fillRect(x + 16, y + 50 - legOff, 11, 6);
+  cx.fillStyle = '#e8e8e8'; cx.fillRect(x + 2, y + 20, 26, 22);
+  cx.fillStyle = '#ccc'; cx.fillRect(x + 2, y + 20, 26, 3);
   const hx = x + 1, hy = y;
   cx.fillStyle = '#f5c5a3';
-  cx.beginPath();
-  cx.roundRect(hx, hy, 28, 24, 6);
-  cx.fill();
-
+  cx.beginPath(); cx.roundRect(hx, hy, 28, 24, 6); cx.fill();
   cx.fillStyle = '#d4a882';
   cx.beginPath();
   cx.ellipse(hx + 7, hy + 18, 5, 4, 0, 0, Math.PI * 2);
   cx.ellipse(hx + 21, hy + 18, 5, 4, 0, 0, Math.PI * 2);
   cx.fill();
-
   cx.fillStyle = '#8B6040';
-  cx.beginPath();
-  cx.roundRect(hx + 1, hy + 1, 26, 9, [5, 5, 0, 0]);
-  cx.fill();
-
+  cx.beginPath(); cx.roundRect(hx + 1, hy + 1, 26, 9, [5, 5, 0, 0]); cx.fill();
   cx.fillStyle = '#fff';
-  cx.fillRect(hx + 5, hy + 10, 7, 7);
-  cx.fillRect(hx + 16, hy + 10, 7, 7);
+  cx.fillRect(hx + 5, hy + 10, 7, 7); cx.fillRect(hx + 16, hy + 10, 7, 7);
   cx.fillStyle = '#1a1a2e';
-  cx.fillRect(hx + 7, hy + 12, 4, 4);
-  cx.fillRect(hx + 18, hy + 12, 4, 4);
-
+  cx.fillRect(hx + 7, hy + 12, 4, 4); cx.fillRect(hx + 18, hy + 12, 4, 4);
   cx.fillStyle = '#2a1a0a';
-  cx.fillRect(hx + 4, hy + 9, 8, 3);
-  cx.fillRect(hx + 15, hy + 9, 8, 3);
-
-  cx.fillStyle = '#e07060';
-  cx.fillRect(hx + 9, hy + 20, 9, 2);
-
+  cx.fillRect(hx + 4, hy + 9, 8, 3); cx.fillRect(hx + 15, hy + 9, 8, 3);
+  cx.fillStyle = '#e07060'; cx.fillRect(hx + 9, hy + 20, 9, 2);
   cx.fillStyle = '#e8c4a0';
-  cx.fillRect(x - 4, y + 26 + armOff, 7, 14);
-  cx.fillRect(x + 27, y + 26 - armOff, 7, 14);
-
+  cx.fillRect(x - 4, y + 26 + armOff, 7, 14); cx.fillRect(x + 27, y + 26 - armOff, 7, 14);
   cx.globalAlpha = 1;
 }
 
 function emitFart() {
   for (let i = 0; i < 3; i++) {
     particles.push({
-      x: p.x + 6 + Math.random() * 8,
-      y: p.y + 50 + Math.random() * 6,
-      vx: -2 - Math.random() * 3,
-      vy: 1 + Math.random() * 2,
-      life: 30 + Math.random() * 20,
-      maxLife: 50,
-      r: 4 + Math.random() * 4
+      x: p.x + 6 + Math.random() * 8, y: p.y + 50 + Math.random() * 6,
+      vx: -2 - Math.random() * 3, vy: 1 + Math.random() * 2,
+      life: 30 + Math.random() * 20, maxLife: 50, r: 4 + Math.random() * 4
     });
   }
 }
@@ -194,48 +157,31 @@ function drawParticles() {
     const alpha = pt.life / pt.maxLife;
     cx.globalAlpha = alpha * 0.7;
     cx.fillStyle = '#5cb85c';
-    cx.beginPath();
-    cx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
-    cx.fill();
+    cx.beginPath(); cx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2); cx.fill();
     cx.fillStyle = '#8fd88f';
-    cx.beginPath();
-    cx.arc(pt.x - 1, pt.y - 1, pt.r * 0.5, 0, Math.PI * 2);
-    cx.fill();
+    cx.beginPath(); cx.arc(pt.x - 1, pt.y - 1, pt.r * 0.5, 0, Math.PI * 2); cx.fill();
   }
   cx.globalAlpha = 1;
 }
 
 function drawSoap(o) {
   cx.fillStyle = '#f9f0ff';
-  cx.beginPath();
-  cx.roundRect(o.x, o.y, o.w, o.h, 6);
-  cx.fill();
-  cx.strokeStyle = '#a080d0';
-  cx.lineWidth = 1.5;
-  cx.stroke();
-  cx.fillStyle = '#a080d0';
-  cx.font = 'bold 9px monospace';
+  cx.beginPath(); cx.roundRect(o.x, o.y, o.w, o.h, 6); cx.fill();
+  cx.strokeStyle = '#a080d0'; cx.lineWidth = 1.5; cx.stroke();
+  cx.fillStyle = '#a080d0'; cx.font = 'bold 9px monospace';
   cx.fillText('SOAP', o.x + 3, o.y + o.h / 2 + 4);
   cx.fillStyle = '#fff';
-  cx.beginPath();
-  cx.ellipse(o.x + 8, o.y + 6, 4, 2, -0.3, 0, Math.PI * 2);
-  cx.fill();
+  cx.beginPath(); cx.ellipse(o.x + 8, o.y + 6, 4, 2, -0.3, 0, Math.PI * 2); cx.fill();
 }
 
 function drawSoapCol(o) {
   cx.fillStyle = '#f9f0ff';
-  cx.beginPath();
-  cx.roundRect(o.x, o.y, o.w, o.h, 8);
-  cx.fill();
-  cx.strokeStyle = '#a080d0';
-  cx.lineWidth = 1.5;
-  cx.stroke();
-  cx.fillStyle = '#a080d0';
-  cx.font = 'bold 9px monospace';
+  cx.beginPath(); cx.roundRect(o.x, o.y, o.w, o.h, 8); cx.fill();
+  cx.strokeStyle = '#a080d0'; cx.lineWidth = 1.5; cx.stroke();
+  cx.fillStyle = '#a080d0'; cx.font = 'bold 9px monospace';
   cx.save();
   cx.translate(o.x + o.w / 2, o.y + o.h / 2);
-  cx.rotate(-Math.PI / 2);
-  cx.fillText('SOAP', -10, 3);
+  cx.rotate(-Math.PI / 2); cx.fillText('SOAP', -10, 3);
   cx.restore();
 }
 
@@ -243,31 +189,22 @@ function drawShower(o) {
   cx.fillStyle = '#888';
   cx.fillRect(o.x + o.w / 2 - 3, o.y, 6, 8);
   cx.fillStyle = '#aaa';
-  cx.beginPath();
-  cx.ellipse(o.x + o.w / 2, o.y + 12, 14, 6, 0, 0, Math.PI * 2);
-  cx.fill();
+  cx.beginPath(); cx.ellipse(o.x + o.w / 2, o.y + 12, 14, 6, 0, 0, Math.PI * 2); cx.fill();
   cx.fillStyle = '#888';
-  for (let i = -2; i <= 2; i++) {
-    cx.fillRect(o.x + o.w / 2 + i * 4 - 1, o.y + 14, 2, 2);
-  }
-
+  for (let i = -2; i <= 2; i++) cx.fillRect(o.x + o.w / 2 + i * 4 - 1, o.y + 14, 2, 2);
   cx.fillStyle = 'rgba(100,180,255,0.55)';
   const streamTop = o.y + 16;
   const streamH = o.h - 16;
   cx.fillRect(o.x + o.w / 2 - 16, streamTop, 32, streamH);
-
   cx.fillStyle = 'rgba(180,220,255,0.7)';
   for (let i = 0; i < 8; i++) {
     const dy = (frame * 4 + i * 18) % streamH;
     cx.fillRect(o.x + o.w / 2 - 14 + (i % 3) * 9, streamTop + dy, 3, 8);
   }
-
   if (o.upper) {
     const py = o.y + o.h;
-    cx.fillStyle = '#c0a880';
-    cx.fillRect(o.x - 4, py, o.w + 8, 6);
-    cx.fillStyle = '#9a8060';
-    cx.fillRect(o.x - 4, py + 6, o.w + 8, 2);
+    cx.fillStyle = '#c0a880'; cx.fillRect(o.x - 4, py, o.w + 8, 6);
+    cx.fillStyle = '#9a8060'; cx.fillRect(o.x - 4, py + 6, o.w + 8, 2);
   }
 }
 
@@ -275,70 +212,39 @@ function drawDuck(c) {
   if (c.taken) return;
   const x = c.x, y = c.y;
   cx.fillStyle = '#ffd83a';
-  cx.beginPath();
-  cx.ellipse(x + 11, y + 13, 11, 8, 0, 0, Math.PI * 2);
-  cx.fill();
-  cx.beginPath();
-  cx.arc(x + 16, y + 7, 7, 0, Math.PI * 2);
-  cx.fill();
+  cx.beginPath(); cx.ellipse(x + 11, y + 13, 11, 8, 0, 0, Math.PI * 2); cx.fill();
+  cx.beginPath(); cx.arc(x + 16, y + 7, 7, 0, Math.PI * 2); cx.fill();
   cx.fillStyle = '#ff8c1a';
   cx.beginPath();
-  cx.moveTo(x + 21, y + 7);
-  cx.lineTo(x + 26, y + 8);
-  cx.lineTo(x + 21, y + 10);
+  cx.moveTo(x + 21, y + 7); cx.lineTo(x + 26, y + 8); cx.lineTo(x + 21, y + 10);
   cx.fill();
   cx.fillStyle = '#1a1a2e';
   cx.fillRect(x + 17, y + 5, 2, 2);
-  cx.beginPath();
-  cx.arc(x + 11, y + 13, 2.5, 0, Math.PI * 2);
-  cx.fill();
+  cx.beginPath(); cx.arc(x + 11, y + 13, 2.5, 0, Math.PI * 2); cx.fill();
   cx.fillStyle = 'rgba(26,26,46,0.5)';
-  cx.beginPath();
-  cx.arc(x + 11, y + 13, 1.2, 0, Math.PI * 2);
-  cx.fill();
+  cx.beginPath(); cx.arc(x + 11, y + 13, 1.2, 0, Math.PI * 2); cx.fill();
 }
 
 function update() {
   if (state !== 'running') return;
-  frame++;
-  score++;
+  frame++; score++;
   speed = 4 + Math.floor(score / 400) * 0.5;
   scEl.textContent = 'Distance: ' + Math.floor(score / 5) + 'm';
-
-  if (thrusting) {
-    p.vy += THRUST + GRAV;
-    emitFart();
-    p.grounded = false;
-  } else {
-    p.vy += GRAV;
-  }
+  if (thrusting) { p.vy += THRUST + GRAV; emitFart(); p.grounded = false; }
+  else { p.vy += GRAV; }
   p.vy = Math.max(-MAXV, Math.min(MAXV, p.vy));
   p.y += p.vy;
-
   if (p.y < CEIL) { p.y = CEIL; p.vy = 0; }
-  if (p.y + p.h >= FLOOR) {
-    p.y = FLOOR - p.h;
-    p.vy = 0;
-    p.grounded = true;
-  } else {
-    p.grounded = false;
-  }
-
+  if (p.y + p.h >= FLOOR) { p.y = FLOOR - p.h; p.vy = 0; p.grounded = true; }
+  else { p.grounded = false; }
   for (let i = particles.length - 1; i >= 0; i--) {
     const pt = particles[i];
-    pt.x += pt.vx - speed * 0.3;
-    pt.y += pt.vy;
-    pt.life--;
-    pt.r *= 1.02;
+    pt.x += pt.vx - speed * 0.3; pt.y += pt.vy;
+    pt.life--; pt.r *= 1.02;
     if (pt.life <= 0) particles.splice(i, 1);
   }
-
   spawnT--;
-  if (spawnT <= 0) {
-    spawn();
-    spawnT = 55 + Math.floor(Math.random() * 50);
-  }
-
+  if (spawnT <= 0) { spawn(); spawnT = 55 + Math.floor(Math.random() * 50); }
   for (let i = obs.length - 1; i >= 0; i--) {
     obs[i].x -= speed;
     if (obs[i].x + obs[i].w < -20) obs.splice(i, 1);
@@ -347,7 +253,6 @@ function update() {
     coins[i].x -= speed;
     if (coins[i].x + coins[i].w < -20) coins.splice(i, 1);
   }
-
   const pb = { x: p.x, y: p.y, w: p.w, h: p.h };
   for (const o of obs) {
     if (o.t === 'soap' || o.t === 'soap_col') {
@@ -359,15 +264,12 @@ function update() {
         const pl = { x: o.x - 4, y: o.y + o.h, w: o.w + 8, h: 6 };
         if (overlap(pb, pl)) { die(); break; }
         if (overlap(pb, stream)) { die(); break; }
-      } else {
-        if (overlap(pb, stream)) { die(); break; }
-      }
+      } else { if (overlap(pb, stream)) { die(); break; } }
     }
   }
   for (const c of coins) {
     if (!c.taken && overlap(pb, c)) {
-      c.taken = true;
-      ducks++;
+      c.taken = true; ducks++;
       cnEl.textContent = 'Rubber duckies: ' + ducks;
     }
   }
@@ -375,15 +277,12 @@ function update() {
 
 function die() {
   if (state === 'dead') return;
-  state = 'dead';
-  p.dead = true;
-  rb.style.display = 'inline-block';
-  mgEl.textContent = '';
+  state = 'dead'; p.dead = true;
+  rb.style.display = 'inline-block'; mgEl.textContent = '';
 }
 
 function drawDeath() {
-  cx.fillStyle = 'rgba(0,0,0,0.75)';
-  cx.fillRect(0, 0, W, H);
+  cx.fillStyle = 'rgba(0,0,0,0.75)'; cx.fillRect(0, 0, W, H);
   cx.save();
   const shake = Math.sin(frame * 0.8) * 2;
   cx.translate(shake, 0);
@@ -393,8 +292,7 @@ function drawDeath() {
   cx.fillText("YOU'RE CLEAN", W / 2, H / 2);
   cx.fillStyle = '#990000';
   cx.fillText("YOU'RE CLEAN", W / 2 + 3, H / 2 + 3);
-  cx.fillStyle = '#ff4040';
-  cx.font = '16px monospace';
+  cx.fillStyle = '#ff4040'; cx.font = '16px monospace';
   cx.fillText('Distance: ' + Math.floor(score / 5) + 'm   Duckies: ' + ducks, W / 2, H / 2 + 36);
   cx.restore();
   cx.textAlign = 'left';
@@ -412,14 +310,11 @@ function draw() {
   drawParticles();
   drawOskar();
   if (state === 'idle') {
-    cx.fillStyle = 'rgba(0,0,0,0.55)';
-    cx.fillRect(0, 0, W, H);
-    cx.fillStyle = '#5cb85c';
-    cx.font = 'bold 28px monospace';
+    cx.fillStyle = 'rgba(0,0,0,0.55)'; cx.fillRect(0, 0, W, H);
+    cx.fillStyle = '#5cb85c'; cx.font = 'bold 28px monospace';
     cx.textAlign = 'center';
     cx.fillText('ÓSKAR: FART JOYRIDE', W / 2, H / 2 - 12);
-    cx.fillStyle = '#fff';
-    cx.font = '14px monospace';
+    cx.fillStyle = '#fff'; cx.font = '14px monospace';
     cx.fillText('Hold Space / click to fly. Release to run on the ground.', W / 2, H / 2 + 14);
     cx.fillText('Avoid soap & showers. Grab rubber duckies.', W / 2, H / 2 + 34);
     cx.textAlign = 'left';
@@ -428,11 +323,7 @@ function draw() {
 }
 
 let anim;
-function loop() {
-  update();
-  draw();
-  anim = requestAnimationFrame(loop);
-}
+function loop() { update(); draw(); anim = requestAnimationFrame(loop); }
 
 function startThrust() {
   if (state === 'idle') { state = 'running'; mgEl.textContent = ''; }
@@ -442,6 +333,7 @@ function stopThrust() { thrusting = false; }
 
 document.addEventListener('keydown', e => {
   if (e.code === 'Space' && !e.repeat) { e.preventDefault(); startThrust(); }
+  if (e.code === 'KeyF' && !e.repeat) toggleFullscreen();
 });
 document.addEventListener('keyup', e => {
   if (e.code === 'Space') { e.preventDefault(); stopThrust(); }
@@ -450,6 +342,20 @@ cv.addEventListener('pointerdown', startThrust);
 cv.addEventListener('pointerup', stopThrust);
 cv.addEventListener('pointerleave', stopThrust);
 rb.addEventListener('click', () => { init(); state = 'running'; });
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    if (wrap.requestFullscreen) wrap.requestFullscreen();
+    else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+}
+fsBtn.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => {
+  fsBtn.textContent = document.fullscreenElement ? '⛶ Exit' : '⛶ Fullscreen';
+});
 
 init();
 loop();
